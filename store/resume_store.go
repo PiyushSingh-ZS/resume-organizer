@@ -1,6 +1,7 @@
 package store
 
 import (
+	"database/sql"
 	"resumeorganizer/model"
 
 	"gofr.dev/pkg/gofr"
@@ -27,6 +28,8 @@ func (s *ResumeStore) Create(ctx *gofr.Context, resume *model.Resume) error {
 // GetByID retrieves a resume by its ID
 func (s *ResumeStore) GetByID(ctx *gofr.Context, id string) (*model.Resume, error) {
 	var resume model.Resume
+	var fileContent sql.RawBytes
+
 	err := ctx.SQL.QueryRowContext(ctx, `
 		SELECT id, role, company, version, status, notes, file_name, file_content, created_at, updated_at
 		FROM resumes
@@ -39,13 +42,20 @@ func (s *ResumeStore) GetByID(ctx *gofr.Context, id string) (*model.Resume, erro
 		&resume.Status,
 		&resume.Notes,
 		&resume.FileName,
-		&resume.FileContent,
+		&fileContent,
 		&resume.CreatedAt,
 		&resume.UpdatedAt,
 	)
 	if err != nil {
 		return nil, err
 	}
+
+	// Convert RawBytes to []byte
+	if fileContent != nil {
+		resume.FileContent = make([]byte, len(fileContent))
+		copy(resume.FileContent, fileContent)
+	}
+
 	return &resume, nil
 }
 
@@ -63,6 +73,8 @@ func (s *ResumeStore) GetAll(ctx *gofr.Context) ([]*model.Resume, error) {
 	var resumes []*model.Resume
 	for rows.Next() {
 		var resume model.Resume
+		var fileContent sql.RawBytes
+
 		err := rows.Scan(
 			&resume.ID,
 			&resume.Role,
@@ -71,13 +83,20 @@ func (s *ResumeStore) GetAll(ctx *gofr.Context) ([]*model.Resume, error) {
 			&resume.Status,
 			&resume.Notes,
 			&resume.FileName,
-			&resume.FileContent,
+			&fileContent,
 			&resume.CreatedAt,
 			&resume.UpdatedAt,
 		)
 		if err != nil {
 			return nil, err
 		}
+
+		// Convert RawBytes to []byte
+		if fileContent != nil {
+			resume.FileContent = make([]byte, len(fileContent))
+			copy(resume.FileContent, fileContent)
+		}
+
 		resumes = append(resumes, &resume)
 	}
 	return resumes, nil
@@ -98,6 +117,8 @@ func (s *ResumeStore) GetByRole(ctx *gofr.Context, role string) ([]*model.Resume
 	var resumes []*model.Resume
 	for rows.Next() {
 		var resume model.Resume
+		var fileContent sql.RawBytes
+
 		err := rows.Scan(
 			&resume.ID,
 			&resume.Role,
@@ -106,13 +127,20 @@ func (s *ResumeStore) GetByRole(ctx *gofr.Context, role string) ([]*model.Resume
 			&resume.Status,
 			&resume.Notes,
 			&resume.FileName,
-			&resume.FileContent,
+			&fileContent,
 			&resume.CreatedAt,
 			&resume.UpdatedAt,
 		)
 		if err != nil {
 			return nil, err
 		}
+
+		// Convert RawBytes to []byte
+		if fileContent != nil {
+			resume.FileContent = make([]byte, len(fileContent))
+			copy(resume.FileContent, fileContent)
+		}
+
 		resumes = append(resumes, &resume)
 	}
 	return resumes, nil
@@ -133,6 +161,8 @@ func (s *ResumeStore) GetByCompany(ctx *gofr.Context, company string) ([]*model.
 	var resumes []*model.Resume
 	for rows.Next() {
 		var resume model.Resume
+		var fileContent sql.RawBytes
+
 		err := rows.Scan(
 			&resume.ID,
 			&resume.Role,
@@ -141,13 +171,20 @@ func (s *ResumeStore) GetByCompany(ctx *gofr.Context, company string) ([]*model.
 			&resume.Status,
 			&resume.Notes,
 			&resume.FileName,
-			&resume.FileContent,
+			&fileContent,
 			&resume.CreatedAt,
 			&resume.UpdatedAt,
 		)
 		if err != nil {
 			return nil, err
 		}
+
+		// Convert RawBytes to []byte
+		if fileContent != nil {
+			resume.FileContent = make([]byte, len(fileContent))
+			copy(resume.FileContent, fileContent)
+		}
+
 		resumes = append(resumes, &resume)
 	}
 	return resumes, nil
