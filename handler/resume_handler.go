@@ -4,13 +4,10 @@ import (
 	"fmt"
 	"io"
 	"mime/multipart"
-	"os"
 	"resumeorganizer/model"
 	"resumeorganizer/service"
 
-	"github.com/gen2brain/go-fitz"
 	"gofr.dev/pkg/gofr"
-	"gofr.dev/pkg/gofr/http"
 )
 
 // ResumeHandler handles HTTP requests for resume operations
@@ -25,7 +22,7 @@ func NewResumeHandler(service *service.ResumeService) *ResumeHandler {
 	}
 }
 
-// Create handles the request to create a new resume with both info and file
+// Create handles the creation of a new resume
 func (h *ResumeHandler) Create(ctx *gofr.Context) (interface{}, error) {
 	var request struct {
 		Role    string                `form:"role"`
@@ -41,7 +38,7 @@ func (h *ResumeHandler) Create(ctx *gofr.Context) (interface{}, error) {
 	}
 
 	// Create resume with basic info
-	resume, err := h.service.CreateResume(
+	resume, err := h.service.CreateResume(ctx,
 		request.Role,
 		request.Company,
 		request.Version,
@@ -65,7 +62,7 @@ func (h *ResumeHandler) Create(ctx *gofr.Context) (interface{}, error) {
 			return nil, err
 		}
 
-		if err := h.service.UploadResumeFile(resume.ID, fileData, request.File.Filename); err != nil {
+		if err := h.service.UploadResumeFile(ctx, resume.ID, fileData, request.File.Filename); err != nil {
 			return nil, err
 		}
 	}
@@ -73,18 +70,18 @@ func (h *ResumeHandler) Create(ctx *gofr.Context) (interface{}, error) {
 	return resume, nil
 }
 
-// Get handles the request to retrieve a resume by ID
+// Get handles retrieving a resume by ID
 // Route: GET /resumes/{id}
 // Query Parameters:
 //   - include_content: boolean (optional) - If true, includes the PDF content in the response
 func (h *ResumeHandler) Get(ctx *gofr.Context) (interface{}, error) {
 	id := ctx.PathParam("id")
 	if id == "" {
-		return nil, http.ErrorMissingParam{Params: []string{"id"}}
+		return nil, fmt.Errorf("id is required")
 	}
 
 	// Get resume information
-	resume, err := h.service.GetResume(id)
+	resume, err := h.service.GetResume(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -95,39 +92,21 @@ func (h *ResumeHandler) Get(ctx *gofr.Context) (interface{}, error) {
 		return resume, nil
 	}
 
-	// If file exists, read its content
-	if resume.FilePath != "" {
-		// Open the PDF file
-		doc, err := fitz.New(resume.FilePath)
-		if err != nil {
-			return nil, fmt.Errorf("failed to open PDF: %v", err)
-		}
-		defer doc.Close()
-
-		// Extract text from all pages
-		var text string
-		for i := 0; i < doc.NumPage(); i++ {
-			pageText, err := doc.Text(i)
-			if err != nil {
-				continue
-			}
-			text += pageText + "\n"
-		}
-
-		// Return resume with content
+	// If file exists, return it with content
+	if len(resume.FileContent) > 0 {
 		return struct {
 			*model.Resume
 			Content string `json:"content,omitempty"`
 		}{
 			Resume:  resume,
-			Content: text,
+			Content: string(resume.FileContent),
 		}, nil
 	}
 
 	return resume, nil
 }
 
-// GetAll handles the request to retrieve all resumes
+// GetAll handles retrieving all resumes
 // Route: GET /resumes
 // Query Parameters:
 //   - role: string (optional) - Filter resumes by role
@@ -137,33 +116,21 @@ func (h *ResumeHandler) Get(ctx *gofr.Context) (interface{}, error) {
 func (h *ResumeHandler) GetAll(ctx *gofr.Context) (interface{}, error) {
 	role := ctx.Param("role")
 	company := ctx.Param("company")
-	status := ctx.Param("status")
 	includeContent := ctx.Param("include_content") == "true"
 
 	var resumes []*model.Resume
 	var err error
 
 	if role != "" {
-		resumes, err = h.service.GetResumesByRole(role)
+		resumes, err = h.service.GetResumesByRole(ctx, role)
 	} else if company != "" {
-		resumes, err = h.service.GetResumesByCompany(company)
+		resumes, err = h.service.GetResumesByCompany(ctx, company)
 	} else {
-		resumes, err = h.service.GetAllResumes()
+		resumes, err = h.service.GetAllResumes(ctx)
 	}
 
 	if err != nil {
 		return nil, err
-	}
-
-	// Filter by status if provided
-	if status != "" {
-		filteredResumes := make([]*model.Resume, 0)
-		for _, resume := range resumes {
-			if resume.Status == status {
-				filteredResumes = append(filteredResumes, resume)
-			}
-		}
-		resumes = filteredResumes
 	}
 
 	// Include content if requested
@@ -175,23 +142,8 @@ func (h *ResumeHandler) GetAll(ctx *gofr.Context) (interface{}, error) {
 
 		for i, resume := range resumes {
 			response[i].Resume = resume
-			if resume.FilePath != "" {
-				doc, err := fitz.New(resume.FilePath)
-				if err != nil {
-					continue
-				}
-				defer doc.Close()
-
-				var text string
-				for i := 0; i < doc.NumPage(); i++ {
-					pageText, err := doc.Text(i)
-					if err != nil {
-						continue
-					}
-					text += pageText + "\n"
-				}
-
-				response[i].Content = text
+			if len(resume.FileContent) > 0 {
+				response[i].Content = string(resume.FileContent)
 			}
 		}
 
@@ -201,106 +153,41 @@ func (h *ResumeHandler) GetAll(ctx *gofr.Context) (interface{}, error) {
 	return resumes, nil
 }
 
-// UpdateStatus handles the request to update a resume's status
+// UpdateStatus handles updating a resume's status
 func (h *ResumeHandler) UpdateStatus(ctx *gofr.Context) (interface{}, error) {
 	id := ctx.PathParam("id")
 	if id == "" {
-		return nil, http.ErrorMissingParam{Params: []string{"id"}}
+		return nil, fmt.Errorf("id is required")
 	}
 
-	var request struct {
+	var req struct {
 		Status string `json:"status"`
 		Notes  string `json:"notes"`
 	}
 
-	if err := ctx.Bind(&request); err != nil {
+	if err := ctx.Bind(&req); err != nil {
 		return nil, err
 	}
 
-	if err := h.service.UpdateResumeStatus(id, request.Status, request.Notes); err != nil {
-		return nil, err
-	}
-
-	return map[string]string{"message": "Status updated successfully"}, nil
-}
-
-// UploadFile handles the request to upload a resume file
-func (h *ResumeHandler) UploadFile(ctx *gofr.Context) (interface{}, error) {
-	id := ctx.PathParam("id")
-	if id == "" {
-		return nil, http.ErrorMissingParam{Params: []string{"id"}}
-	}
-
-	var request struct {
-		FileHeader *multipart.FileHeader `file:"file"`
-	}
-
-	if err := ctx.Bind(&request); err != nil {
-		return nil, err
-	}
-
-	file, err := request.FileHeader.Open()
-	if err != nil {
-		return nil, err
-	}
-	defer file.Close()
-
-	fileData, err := io.ReadAll(file)
+	err := h.service.UpdateResumeStatus(ctx, id, req.Status, req.Notes)
 	if err != nil {
 		return nil, err
 	}
 
-	if err := h.service.UploadResumeFile(id, fileData, request.FileHeader.Filename); err != nil {
-		return nil, err
-	}
-
-	return map[string]string{"message": "File uploaded successfully"}, nil
+	return map[string]string{"message": "Resume status updated successfully"}, nil
 }
 
-// Delete handles the request to delete a resume
+// Delete handles deleting a resume
 func (h *ResumeHandler) Delete(ctx *gofr.Context) (interface{}, error) {
 	id := ctx.PathParam("id")
 	if id == "" {
-		return nil, http.ErrorMissingParam{Params: []string{"id"}}
+		return nil, fmt.Errorf("id is required")
 	}
 
-	if err := h.service.DeleteResume(id); err != nil {
+	err := h.service.DeleteResume(ctx, id)
+	if err != nil {
 		return nil, err
 	}
 
 	return map[string]string{"message": "Resume deleted successfully"}, nil
-}
-
-// Download handles the request to download a resume file
-// Route: GET /resumes/{id}/download
-func (h *ResumeHandler) Download(ctx *gofr.Context) (interface{}, error) {
-	id := ctx.PathParam("id")
-	if id == "" {
-		return nil, http.ErrorMissingParam{Params: []string{"id"}}
-	}
-
-	resume, err := h.service.GetResume(id)
-	if err != nil {
-		return nil, err
-	}
-
-	if resume.FilePath == "" {
-		return nil, fmt.Errorf("file not found for resume %s", id)
-	}
-
-	// Open the file
-	file, err := os.Open(resume.FilePath)
-	if err != nil {
-		return nil, err
-	}
-	defer file.Close()
-
-	// Return the file path and name for GoFr to handle the download
-	return struct {
-		FilePath string `json:"file_path"`
-		FileName string `json:"file_name"`
-	}{
-		FilePath: resume.FilePath,
-		FileName: resume.FileName,
-	}, nil
 }
