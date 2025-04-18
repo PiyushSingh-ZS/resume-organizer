@@ -6,17 +6,16 @@ import (
 
 // Resume represents a resume document with its metadata
 type Resume struct {
-	ID        string    `json:"id"`
-	Role      string    `json:"role"`
-	Company   string    `json:"company"`
-	Version   string    `json:"version"`
-	Status    string    `json:"status"`
-	Notes     string    `json:"notes"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
-	FilePath  string    `json:"file_path"`
-	FileName  string    `json:"file_name"`
-	Content   string    `json:"content,omitempty"` // Store PDF content
+	ID          string    `json:"id"`
+	Role        string    `json:"role"`
+	Company     string    `json:"company"`
+	Version     string    `json:"version"`
+	Status      string    `json:"status"`
+	Notes       string    `json:"notes"`
+	FileName    string    `json:"file_name"`
+	FileContent []byte    `json:"file_content,omitempty"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
 }
 
 // NewResume creates a new Resume instance with default values
@@ -42,15 +41,9 @@ func (r *Resume) UpdateStatus(status, notes string) {
 }
 
 // SetFileInfo updates the file information
-func (r *Resume) SetFileInfo(filePath, fileName string) {
-	r.FilePath = filePath
+func (r *Resume) SetFileInfo(fileName string, fileContent []byte) {
 	r.FileName = fileName
-	r.UpdatedAt = time.Now()
-}
-
-// SetContent updates the PDF content
-func (r *Resume) SetContent(content string) {
-	r.Content = content
+	r.FileContent = fileContent
 	r.UpdatedAt = time.Now()
 }
 

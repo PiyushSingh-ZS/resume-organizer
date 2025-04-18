@@ -2,6 +2,7 @@ package main
 
 import (
 	"resumeorganizer/handler"
+	"resumeorganizer/migrations"
 	"resumeorganizer/service"
 	"resumeorganizer/store"
 
@@ -9,24 +10,22 @@ import (
 )
 
 func main() {
-	// Create a new GoFr application
+	// Create a new application
 	app := gofr.New()
 
-	// Initialize store
-	resumeStore := store.NewInMemoryResumeStore()
+	// Add migrations to run
+	app.Migrate(migrations.All())
 
-	// Initialize service
+	// Create store and service
+	resumeStore := store.NewResumeStore()
 	resumeService := service.NewResumeService(resumeStore)
-
-	// Initialize handler
 	resumeHandler := handler.NewResumeHandler(resumeService)
 
 	// Register routes
 	app.POST("/resumes", resumeHandler.Create)
-	app.GET("/resumes", resumeHandler.GetAll)
 	app.GET("/resumes/{id}", resumeHandler.Get)
-	app.PATCH("/resumes/{id}/status", resumeHandler.UpdateStatus)
-	app.POST("/resumes/{id}/upload", resumeHandler.UploadFile)
+	app.GET("/resumes", resumeHandler.GetAll)
+	app.PUT("/resumes/{id}/status", resumeHandler.UpdateStatus)
 	app.DELETE("/resumes/{id}", resumeHandler.Delete)
 
 	// Start the server
