@@ -1,4 +1,4 @@
-FROM debian:bullseye-slim
+FROM debian:bookworm-slim
 
 RUN apt-get update && \
     apt-get install -y libffi8 ca-certificates tzdata && \
@@ -6,7 +6,8 @@ RUN apt-get update && \
 
 COPY main /main
 COPY uploads /uploads
-RUN chmod +x /main
 
+RUN chmod +x /main
 EXPOSE 8000
+
 CMD ["/main"]
