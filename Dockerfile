@@ -1,7 +1,7 @@
 FROM debian:bookworm-slim
 
 RUN apt-get update && \
-    apt-get install -y libffi8 ca-certificates tzdata && \
+    apt-get install -y mupdf mupdf-tools libffi8 tzdata ca-certificates && \
     rm -rf /var/lib/apt/lists/*
 
 COPY main /main
