@@ -1,15 +1,12 @@
-FROM alpine:edge
+FROM debian:bullseye-slim
 
-RUN apk add --no-cache libc6-compat
+RUN apt-get update && \
+    apt-get install -y libffi8 ca-certificates tzdata && \
+    rm -rf /var/lib/apt/lists/*
 
-RUN apk add --no-cache libffi ca-certificates tzdata
-
-COPY main ./main
-
-COPY uploads ./uploads
-
+COPY main /main
+COPY uploads /uploads
 RUN chmod +x /main
 
 EXPOSE 8000
-
 CMD ["/main"]
