@@ -1,7 +1,6 @@
-FROM alpine:edge
+FROM ubuntu:20.04
 
-# Install glibc (this requires adding the glibc package)
-RUN apk add --no-cache libc6-compat
+RUN apk add --no-cache tzdata ca-certificates
 
 COPY main ./main
 
@@ -9,6 +8,4 @@ RUN chmod +x /main
 
 EXPOSE 8000
 
-RUN ls -la
-
-CMD ["/bin/sh", "-c", "/main & tail -f /dev/null"]
+CMD ["/main"]
