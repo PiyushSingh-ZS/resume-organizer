@@ -1,9 +1,19 @@
 FROM debian:bookworm-slim
 
-RUN apt-get update && \
-    apt-get install -y mupdf mupdf-tools libffi8 tzdata ca-certificates && \
-    rm -rf /var/lib/apt/lists/*
+# Install required packages including libmupdf
+RUN apt-get update && apt-get install -y \
+    libmupdf-dev \
+    libmujs2 \
+    libharfbuzz-dev \
+    libfreetype6-dev \
+    libjpeg-dev \
+    libopenjp2-7-dev \
+    libx11-dev \
+    ca-certificates \
+    tzdata \
+    && rm -rf /var/lib/apt/lists/*
 
+# Copy your Go binary and assets
 COPY main /main
 COPY uploads /uploads
 
